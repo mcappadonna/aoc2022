@@ -9,137 +9,107 @@ if len(sys.argv) != 2:
     exit(1)
 
 
-class Type(Enum):
-    FILE = 1
-    DIRECTORY = 2
-    COMMAND = 3
-    NONE = 4
+class Command(Enum):
+    cmd: str
+    arg: str
 
-
-class FSElement:
-    def parent(self):
-        pass
-
-    def name(self) -> str:
-        pass
-
-    def size(self) -> int:
-        pass
-
-    def type(self) -> Type:
-        pass
-
-
-class File(FSElement):
-    __name: str
-    __size: int
-    __parent: FSElement
-    __type = Type.FILE
-
-    def __init__(self, string: str, parent: FSElement):
-        strElements = string.split(" ")
-        self.__name = strElements[1]
-        self.__size = strElements[0]
-        self.__parent = parent
+    def __init__(self, cmd, arg):
+        self.cmd = cmd
+        self.arg = arg
 
     def __str__(self):
-        return f"{self.__name} (file, size={self.__size})"
+        return f"$ {self.cmd} {self.arg}"
 
-    def name(self) -> str:
-        return self.__name
-
-    def size(self) -> int:
-        return self.__size
-
-    def type(self) -> Type:
-        return self.__type
-
-    def parent(self) -> FSElement:
-        return self.__parent
+    @staticmethod
+    def iscommand(line):
+        if line[0] == '$':
+            return True
+        else:
+            return False
 
 
-class Directory(FSElement):
-    __name: str
-    __content: []
-    __parent: FSElement
-    __type = Type.DIRECTORY
+class FSelement:
+    name: str
+    parent: None
 
-    def __init__(self, string: str, parent: FSElement = None):
-        self.__name = string.split(' ')[1]
-        self.__content = []
-        self.__parent = parent
+
+class Directory(FSelement):
+    content: []
+
+    def __init__(self, name, parent=None):
+        self.name = name
+        self.parent = parent
+        self.content = []
 
     def __str__(self):
-        output = f"{self.__name} (dir)"
-        for element in self.__content:
-            output += f"  - \n{element}"
+        output = f"- {self.name} (dir)\n"
+        for content in self.content:
+            output += f"  {content}\n"
         return output
 
-    def size(self) -> int:
-        total = 0
+    def add(self, content: FSelement):
+        self.content.append(content)
+
+    def getdir(self, name: str):
+        subdir = None
         for element in self.content:
-            total += element.size()
-        return total
+            if element.name == name:
+                subdir = element
+                break
+        return subdir
 
-    def add(self, obj):
-        self.content.append(obj)
-
-    def content(self):
-        return self.__content
-
-
-def linetype(line: str) -> Type:
-    if line[0] == '$':
-        return Type.COMMAND
-    elif line[0] == 'd':
-        return Type.DIRECTORY
-    elif line[0].isdigit():
-        return Type.FILE
-    return Type.NONE
+    @staticmethod
+    def isdirectory(line: str):
+        if line.split(' ')[0].isascii():
+            return True
+        else:
+            return False
 
 
-def command(cmdline: str):
-    return cmdline.split(' ')[1]
+class File(FSelement):
+    size: int
+
+    def __init__(self, name, size):
+        self.name = name
+        self.size = size
+
+    def __str__(self):
+        return f"- {self.name} (file, size={self.size})"
+
+    @staticmethod
+    def isfile(line: str):
+        if line.split(' ')[0].isdigit():
+            return True
+        else:
+            return False
 
 
-def argument(cmdline: str):
-    return cmdline.split(' ')[2]
+def load(file):
+    content = file.readlines()
+    normalized = []
+    for line in content:
+        normalized.append(line[:-1])
+    return normalized
 
 
-with open(sys.argv[1], 'r') as f:
-    output = f.readlines()
-    root = Directory("dir /")
-    workingdir = root
-    lastcommand = ""
-    for line in output:
-        lineType = linetype(line)
-        print(f"type => {lineType}")
-        if lineType == Type.COMMAND:
-            lastcommand = line
-            print(f"command: {line}")
-            cmd = command(line)
-            if cmd == 'cd':
-                arg = argument(line)
-                if arg == '..':
-                    workingdir = workingdir.parent()
-                elif arg == '/':
-                    workingdir = root
+with open(sys.argv[1], "r") as f:
+    content = load(f)
+
+    root = Directory("/")
+    cwd = root
+    command = None
+
+    for line in content:
+        linearray = line.split(' ')
+        if Command.iscommand(line):
+            command = Command(linearray[1], linearray[2])
+            if command.cmd == 'cd':
+                if command.arg == '/':
+                    cwd = root
+                elif command.arg == '..':
+                    if cwd != root and cwd.parent:
+                        cwd = cwd.parent
                 else:
-                    for content in workingdir.content():
-                        if content.name() == argument:
-                            workingdir = content
-        elif lineType == Type.DIRECTORY:
-            print(f"lastcommand: {lastcommand}")
-            if command(lastcommand) == 'ls':
-                print(f"-> add dir {line}")
-                subdir = Directory(line, workingdir)
-                workingdir.add(subdir)
-        elif lineType == Type.FILE:
-            print(f"lastcommand: {lastcommand}")
-            if command(lastcommand) == 'ls':
-                print(f"-> add file {line}")
-                subfile = File(line, workingdir)
-                workingdir.add(subfile)
-
-    print(workingdir)
-f.close()
+                    subdir = cwd.getdir(command.arg)
+                    if subdir is None:
+                        cwd = subdir
