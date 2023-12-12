@@ -30,6 +30,7 @@ class Command:
 class FSelement:
     name: str
     parent: None
+    indent: str = ""
 
 
 class FSdirectory(FSelement):
@@ -37,8 +38,16 @@ class FSdirectory(FSelement):
 
     def __init__(self, name, parent=None):
         self.name = name
-        self.parent = parent
+        if parent is not None:
+            self.parent = parent
+            self.indent = parent.indent + "  "
         self.content = []
+
+    def __str__(self):
+        output = f"{self.indent}- {self.name} (dir)\n"
+        for element in self.content:
+            output += f"{element}\n"
+        return output
 
     def add(self, content: FSelement):
         self.content.append(content)
@@ -59,12 +68,6 @@ class FSdirectory(FSelement):
                 subdirs += element.subdirs()
         return subdirs
 
-    def getsize(self):
-        size = 0
-        for elem in self.content:
-            size += elem.getsize()
-        return size
-
     @staticmethod
     def isdirectory(line: str):
         if line.split(' ')[0].isascii():
@@ -76,12 +79,15 @@ class FSdirectory(FSelement):
 class FSfile(FSelement):
     size: int
 
-    def __init__(self, name: str, size: int):
+    def __init__(self, name: str, size: int, parent=None):
         self.name = name
         self.size = size
+        if parent is not None:
+            self.parent = parent
+            self.indent = parent.indent + "  "
 
-    def getsize(self):
-        return self.size
+    def __str__(self):
+        return f"{self.indent}- {self.name} (file, size={self.size}"
 
     @staticmethod
     def isfile(line: str):
@@ -128,18 +134,8 @@ with open(sys.argv[1], "r") as f:
                 newcontent = FSdirectory(linearray[1], cwd)
                 cwd.add(newcontent)
             else:
-                newcontent = FSfile(linearray[1], int(linearray[0]))
-                newcontent.parent = cwd
+                newcontent = FSfile(linearray[1], int(linearray[0]), cwd)
                 cwd.add(newcontent)
 
-    total = 0
-    limit = 100000
-    for element in root.content:
-        if type(element) is FSdirectory:
-            dirsize = element.getsize()
-            if dirsize <= limit:
-                total += dirsize
-                for subdir in element.getsubdirs():
-                    total += subdir.getsize()
-    print(f"{total}")
+    print(root)
 f.close()
