@@ -87,12 +87,22 @@ with open(filename, "r") as f:
                 subfile = FSfile(linearray[1], int(linearray[0]))
                 cwd.add(subfile)
 
-    threshold = 100000
-    totalsize = 0
-    alldirs = find("d", root)
-    for element in alldirs:
-        size = element.size()
-        if size <= threshold:
-            totalsize += size
-    print(f"{totalsize}")
+    disksize = 70000000
+    spaceneeded = 30000000
+    unusedspace = disksize - root.size()
+    minsize = spaceneeded - unusedspace
+
+    enough = []
+    if root.size() >= minsize:
+        enough.append(root)
+    for directory in find("d", root):
+        if directory.size() >= minsize:
+            enough.append(directory)
+
+    smallest = disksize
+    for directory in enough:
+        size = directory.size()
+        if size < smallest:
+            smallest = size
+    print(smallest)
 f.close()
